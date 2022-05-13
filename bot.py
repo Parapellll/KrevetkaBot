@@ -6,7 +6,7 @@ from SimpleQIWI import *
 
 bot = telebot.TeleBot(configure.config['token']) #Подключение токена
 con = sqlite3.connect('baza.db', check_same_thread=False) #Создание соединения с БД
-cur = con.cursor()# Создание курсора (делает запросы и получает их результаты)
+cur = con.cursor() #Создание курсора (делает запросы и получает их результаты)
 lock = threading.Lock() #Блокировщик
 api = QApi(token=configure.config['tokenqiwi'], phone=configure.config['phoneqiwi']) #Подключение киви
 markdown = """   
@@ -19,19 +19,26 @@ cur.execute("""CREATE TABLE IF NOT EXISTS users (id BIGINT, nick TEXT, cash INT,
 cur.execute("""CREATE TABLE IF NOT EXISTS shop (id INT, name TEXT, price INT, tovar TEXT, whobuy TEXT)""")    #команд SQL
 con.commit()  #Метод, который обеспечивает внесение изменений в БД
 
+
+#Данная команда первая встречает пользователя, записывает в БД имя пользователя, генерирует и записывает id
+#message.from_user.id - хранит ID, что позволяет отвечать нужному человеку
+#if cur.fetchone() is None: - если запись не возвращается - пользователь новый
+#message.from_user.first_name - получение имени пользователя
 @bot.message_handler(commands=['start']) #Объявлени команды, по которой вызывается бот
 def start(message):
 	try:
-		cur.execute(f"SELECT id FROM users WHERE id = {message.from_user.id}")
-		if cur.fetchone() is None:
-			cur.execute(f"INSERT INTO users VALUES ({message.from_user.id}, '{message.from_user.first_name}', 0, 0, 0)")
+		cur.execute(f"SELECT id FROM users WHERE id = {message.from_user.id}") 
+		if cur.fetchone() is None: 
+			cur.execute(f"INSERT INTO users VALUES ({message.from_user.id}, '{message.from_user.first_name}', 0, 0, 0)") 
 			bot.send_message(message.chat.id, f"👾 Добро пожаловать в магазин покупки и продажи аккаунтов, {message.from_user.first_name}!👾\n Пропишите /help, чтобы узнать все команды\n")
-			con.commit()
+			con.commit() #запись в БД нового пользователя
 		else:
-			bot.send_message(message.chat.id, f"🦦 Вы уже зарегистрированы! Пропишите /help, чтобы узнать все команды.")
+			bot.send_message(message.chat.id, f"🦦 Вы уже зарегистрированы! Пропишите /help, чтобы узнать все команды.") #функция ответа пользователю
 	except:
 		bot.send_message(message.chat.id, f'🚫 Ошибка при выполнении команды. Повторите запрос или пропишите /help! 🚫')
 
+		
+#Команда вносит данные о разработчике в БД		
 @bot.message_handler(commands=['getrazrab'])
 def getrazrab(message):
 	if message.from_user.id == 1942166894:
@@ -41,6 +48,9 @@ def getrazrab(message):
 	else:
 		bot.send_message(message.chat.id, f"Отказано в доступе!")
 
+		
+#Команда получает информацию из БД о пользователе и выводит ее
+#{info[]} - данные БД о клиенте
 @bot.message_handler(commands=['profile'])
 def profile(message):
 	try:
@@ -57,6 +67,9 @@ def profile(message):
 	except:
 		bot.send_message(message.chat.id, f'🚫 Ошибка при выполнении команды. Повторите запрос или пропишите /help! 🚫')
 
+		
+#Команда обращается в БД и получает информацию о уровне доступа пользователя
+#lock - блокирует доступ к функциям администрации для обычного пользователя
 @bot.message_handler(commands=['help'])
 def help(message):
 	with lock:
@@ -69,6 +82,7 @@ def help(message):
 	else:
 		bot.send_message(message.chat.id, '*Помощь по командам:*\n\n*Команды для пользователя*\n/profile - Посмотреть свой профиль\n/help - Посмотреть список команд\n/helper - помощник по продаже/покупке\n/buy - Купить аккаунт\n/donate - Пополнить счёт\n/mybuy - Посмотреть список купленных аккаунтов\n/answer - Связаться с помощником',parse_mode='Markdown')
 
+#Стандартная текстовая функция, которая просто прописывает текст				
 @bot.message_handler(commands=['helper'])
 def helper(message):
 	try:
@@ -79,6 +93,9 @@ def helper(message):
 	except:
 		bot.send_message(message.chat.id, f'🚫 Ошибка при выполнении команды. Повторите запрос или пропишите /help! 🚫')
 
+#Функция позволяет покупать товар. Она обращается в БД, чтобы получить информацию о наличии, ID, названии товара.
+#{infoshop[]} - данные из БД о магазине
+#types.InlineKeyboardMarkup() - инлайн клавиатура(создание кнопок)
 @bot.message_handler(commands=['buy'])
 def buy(message):
 	try:
@@ -94,6 +111,7 @@ def buy(message):
 	except:
 		bot.send_message(message.chat.id, f'🚫 Ошибка при выполнении команды. Повторите запрос или пропишите /help! 🚫')
 
+#Сравнение 2 таблиц БД. Сравнивает цену товара и кол-во денег на счету, чтобы вывести результат о возможности покупки		
 def buy_next(message):
 	try:
 		if message.text == message.text:
@@ -111,7 +129,7 @@ def buy_next(message):
 						msg = bot.send_message(message.chat.id, f"Вы подтверждаете покупку товара?",reply_markup=rmk)
 	except:
 		bot.send_message(message.chat.id, f'🚫 Ошибка при выполнении команды. Повторите запрос или пропишите /help! 🚫')
-
+		
 @bot.callback_query_handler(lambda call: call.data == 'firstbuytovaryes' or call.data == 'firstbuytovarno')
 def firstbuy_callback(call):
 	try:
@@ -124,7 +142,8 @@ def firstbuy_callback(call):
 		bot.answer_callback_query(callback_query_id=call.id)
 	except:
 		bot.send_message(call.message.chat.id, f'🚫 Ошибка при выполнении команды. Повторите запрос или пропишите /help! 🚫')
-
+		
+#Завершение покупки и занесение информации о покупке в БД
 @bot.callback_query_handler(lambda call: call.data == 'buytovaryes' or call.data == 'buytovarno')
 def buy_callback(call):
 	try:
@@ -154,6 +173,11 @@ def buy_callback(call):
 	except:
 		bot.send_message(call.message.chat.id, f'🚫 Ошибка при выполнении команды. Повторите запрос или пропишите /help! 🚫')
 
+#Функция создания запроса на пополнение средств и перевода их на счет киви.
+#Пользователь запрашивает поплнить счет на определенную сумму
+#Ему высылаются данные о кошельке администрации. По этому адресу пользователь должен пополнить счет
+#Создается запрос, который приходит администрации
+#В запросе отображается информация о том, какой пользователь отправил запрос и изменилась ли сумма средств на кошельке Киви
 @bot.message_handler(commands=['donate'])
 def donate(message):
 	try:
@@ -161,7 +185,55 @@ def donate(message):
 		bot.register_next_step_handler(msg, donate_value)
 	except:
 		bot.send_message(message.chat.id, f'🚫 Ошибка при выполнении команды. Повторите запрос или пропишите /help! 🚫')
+def donate_value(message):
+	try:
+		if message.text == message.text:
+			global donatevalue
+			global commentdonate
+			global getusername
+			global getuserdonateid
+			getusername = message.from_user.first_name
+			getuserdonateid = message.from_user.id
+			cur.execute(f"SELECT * FROM users WHERE id = {message.from_user.id}")
+			commentdonate = cur.fetchone()[0]
+			donatevalue = int(message.text)
+			rmk = types.InlineKeyboardMarkup()
+			item_yes = types.InlineKeyboardButton(text='✅',callback_data='donateyes')
+			item_no = types.InlineKeyboardButton(text='❌',callback_data='donateno')
+			rmk.add(item_yes, item_no)
+			global qiwibalancebe
+			qiwibalancebe = api.balance
+			msg = bot.send_message(message.chat.id, f"Заявка на пополнение средств успешно создана\n\nВы действительно хотите пополнить средства?",parse_mode='Markdown',reply_markup=rmk)
+	except:
+		bot.send_message(message.chat.id, f'🚫 Ошибка при выполнении команды. Повторите запрос или пропишите /help! 🚫')
 
+def donateyesoplacheno(message):
+	try:
+		removekeyboard = types.ReplyKeyboardRemove()
+		if message.text == '✅ Оплачено':
+			bot.send_message(message.chat.id, f"Ваш запрос отправлен администраторам, ожидайте одобрения и выдачи средств.",reply_markup=removekeyboard)
+			bot.send_message(1942166894, f"Пользователь {getusername} оплатил заявку на пополнение средств\n\nID пользователя: {getuserdonateid}\nСумма: {donatevalue}₽\nКомментарий: {commentdonate}\n\nБаланс вашего QIWI раньше: {qiwibalancebe}\nБаланс вашего QIWI сейчас: {api.balance}\n\nПерепроверьте верность оплаты затем подтвердите выдачу средств.\nДля выдачи средств напишите: /giverub")
+	except:
+		bot.send_message(message.chat.id, f'🚫 Ошибка при выполнении команды. Повторите запрос или пропишите /help! 🚫')
+
+@bot.callback_query_handler(lambda call: call.data == 'donateyes' or call.data == 'donateno')
+def donate_result(call):
+	try:
+		removekeyboard = types.ReplyKeyboardRemove()
+		rmk = types.ReplyKeyboardMarkup(resize_keyboard=True)
+		rmk.add(types.KeyboardButton('✅ Оплачено'))
+		if call.data == 'donateyes':
+			bot.delete_message(call.message.chat.id, call.message.message_id-0)
+			msg = bot.send_message(call.message.chat.id, f"Кошелек для оплаты: +79217038628\nСумма: {donatevalue}₽\nКомментарий: {commentdonate}\n",parse_mode='Markdown',reply_markup=rmk)
+			bot.register_next_step_handler(msg, donateyesoplacheno)
+		elif call.data == 'donateno':
+			bot.send_message(call.message.chat.id, f"Вы отменили заявку на пополнение средств",reply_markup=removekeyboard)
+		bot.answer_callback_query(callback_query_id=call.id)
+	except:
+		bot.send_message(call.message.chat.id, f'🚫 Ошибка при выполнении команды. Повторите запрос или пропишите /help! 🚫')
+		
+		
+#Функция определяет товары, которые были куплены, сравнивая 2 таблицы в БД (информация о клиенте - информация о товаре)		
 @bot.message_handler(commands=['mybuy'])
 def mybuy(message):
 	try:
@@ -174,6 +246,7 @@ def mybuy(message):
 	except:
 		bot.send_message(message.chat.id, f'🚫 Ошибка при выполнении команды. Повторите запрос или пропишите /help! 🚫')
 
+#Функция обащения пользователя к администрации.
 @bot.message_handler(commands=['guard'])
 def guard(message):
 	try:
@@ -181,24 +254,23 @@ def guard(message):
 		bot.register_next_step_handler(msg, teh_next)
 	except:
 		bot.send_message(message.chat.id, f'🚫 Ошибка при выполнении команды. Повторите запрос или пропишите /help! 🚫')
-
 def teh_next(message):
 	try:
 		if message.text == message.text:
-			global tehtextbyuser
-			global tehnamebyuser
-			global tehidbyuser
-			tehidbyuser = int(message.from_user.id)
-			tehnamebyuser = str(message.from_user.first_name)
-			tehtextbyuser = str(message.text)
+			global textbyuser
+			global namebyuser
+			global idbyuser
+			idbyuser = int(message.from_user.id)
+			namebyuser = str(message.from_user.first_name)
+			textbyuser = str(message.text)
 			rmk = types.InlineKeyboardMarkup()
 			item_yes = types.InlineKeyboardButton(text='✉️',callback_data='tehsend')
 			item_no = types.InlineKeyboardButton(text='❌',callback_data='tehno')
 			rmk.add(item_yes, item_no)
-			msg = bot.send_message(message.chat.id, f"Данные об отправке:\n\nТекст для отправки: {tehtextbyuser}\n\nВы действительно хотите отправить это помощнику?",parse_mode='Markdown',reply_markup=rmk)
+			msg = bot.send_message(message.chat.id, f"Данные об отправке:\n\nТекст для отправки: {textbyuser}\n\nВы действительно хотите отправить это помощнику?",parse_mode='Markdown',reply_markup=rmk)
 	except:
 		bot.send_message(message.chat.id, f'🚫 Ошибка при выполнении команды. Повторите запрос или пропишите /help! 🚫')
-
+#Сообщения отправляются администрации с помощью ID, которое позволяет доставить письмо нужному адресату
 @bot.callback_query_handler(func=lambda call: call.data == 'tehsend' or call.data == 'tehno')
 def teh_callback(call):
 	try:
@@ -206,7 +278,7 @@ def teh_callback(call):
 			for info in cur.execute(f"SELECT * FROM users WHERE id = {call.from_user.id}"):
 				bot.delete_message(call.message.chat.id, call.message.message_id-0)
 				bot.send_message(call.message.chat.id, f"Ваше сообщение отправлено помощнику, ожидайте ответа.")
-				bot.send_message(1942166894, f"Пользователь {tehnamebyuser} отправил сообщение помощнику\n\nID пользователя: {tehidbyuser}\nТекст: {tehtextbyuser}\n\nЧтобы ответить пользователю напишите /answer")
+				bot.send_message(1942166894, f"Пользователь {namebyuser} отправил сообщение помощнику\n\nID пользователя: {idbyuser}\nТекст: {textbyuser}\n\nЧтобы ответить пользователю напишите /answer")
 		elif call.data == 'tehno':
 			bot.delete_message(call.message.chat.id, call.message.message_id-0)
 			bot.send_message(call.message.chat.id, f"Вы отменили отправку сообщения помощнику")
@@ -214,6 +286,8 @@ def teh_callback(call):
 	except:
 		bot.send_message(call.message.chat.id, f'🚫 Ошибка при выполнении команды. Повторите запрос или пропишите /help! 🚫')
 
+#Просмотр профиля пользователя. Вызывается информация из БД клиентов (Функция повторяет функцию о просмотре своего профиля, только требует введение ID,
+#чтобы вынуть информацию об определенном человеке)
 @bot.message_handler(commands=['viewprofile'])
 def viewprofile(message):
 	try:
@@ -244,6 +318,7 @@ def getprofile_next(message):
 	except:
 		bot.send_message(message.chat.id, f'🚫 Ошибка при выполнении команды. Повторите запрос или пропишите /help! 🚫')
 
+#Функция = предыдущей функции. Только не требует введение ID, т.к. присылается отчет о всех пользователях		
 @bot.message_handler(commands=['allusers'])
 def allusers(message):
 	try:
@@ -268,6 +343,7 @@ def allusers(message):
 	except:
 		bot.send_message(message.chat.id, f'🚫 Ошибка при выполнении команды. Повторите запрос или пропишите /help! 🚫')
 
+#Функция позволяет внести изменения в БД в строку о уровне доступа.		
 @bot.message_handler(commands=['accesslvl'])
 def setaccess(message):
 	try:
@@ -335,6 +411,7 @@ def access_user_gave_access(call):
 	except:
 		bot.send_message(message.chat.id, f'🚫 Ошибка при выполнении команды. Повторите запрос или пропишите /help! 🚫')
 
+#Вносит изменения в информацию БД о количесве денег на счете		
 @bot.message_handler(commands=['givemoney'])
 def givemoney(message):
 	try:
@@ -419,6 +496,8 @@ def rubles_gave_rubles_user(call):
 			bot.answer_callback_query(callback_query_id=call.id)
 	except:
 		bot.send_message(call.message.chat.id, f'🚫 Ошибка при выполнении команды. Повторите запрос или пропишите /help! 🚫')
+		
+#Вытаскивает информацию из БД об ID путем запроса имени пользователя		
 @bot.message_handler(commands=['getid'])
 def getid(message):
 	try:
@@ -443,6 +522,7 @@ def next_getiduser_name(message):
 	except:
 		bot.send_message(message.chat.id, f'🚫 Ошибка при выполнении команды. Повторите запрос или пропишите /help! 🚫')
 
+#Добавление нового товара в БД. Запрашивает всю необходимую информацию, чтобы заполнить все столбцы строки		
 @bot.message_handler(commands=['addbuy'])
 def addbuy(message):
 	try:
@@ -503,54 +583,7 @@ def addbuy_result(message):
 	except:
 		bot.send_message(message.chat.id, f'🚫 Ошибка при выполнении команды. Повторите запрос или пропишите /help! 🚫')
 
-
-def donate_value(message):
-	try:
-		if message.text == message.text:
-			global donatevalue
-			global commentdonate
-			global getusername
-			global getuserdonateid
-			getusername = message.from_user.first_name
-			getuserdonateid = message.from_user.id
-			cur.execute(f"SELECT * FROM users WHERE id = {message.from_user.id}")
-			commentdonate = cur.fetchone()[0]
-			donatevalue = int(message.text)
-			rmk = types.InlineKeyboardMarkup()
-			item_yes = types.InlineKeyboardButton(text='✅',callback_data='donateyes')
-			item_no = types.InlineKeyboardButton(text='❌',callback_data='donateno')
-			rmk.add(item_yes, item_no)
-			global qiwibalancebe
-			qiwibalancebe = api.balance
-			msg = bot.send_message(message.chat.id, f"Заявка на пополнение средств успешно создана\n\nВы действительно хотите пополнить средства?",parse_mode='Markdown',reply_markup=rmk)
-	except:
-		bot.send_message(message.chat.id, f'🚫 Ошибка при выполнении команды. Повторите запрос или пропишите /help! 🚫')
-
-def donateyesoplacheno(message):
-	try:
-		removekeyboard = types.ReplyKeyboardRemove()
-		if message.text == '✅ Оплачено':
-			bot.send_message(message.chat.id, f"Ваш запрос отправлен администраторам, ожидайте одобрения и выдачи средств.",reply_markup=removekeyboard)
-			bot.send_message(1942166894, f"Пользователь {getusername} оплатил заявку на пополнение средств\n\nID пользователя: {getuserdonateid}\nСумма: {donatevalue}₽\nКомментарий: {commentdonate}\n\nБаланс вашего QIWI раньше: {qiwibalancebe}\nБаланс вашего QIWI сейчас: {api.balance}\n\nПерепроверьте верность оплаты затем подтвердите выдачу средств.\nДля выдачи средств напишите: /giverub")
-	except:
-		bot.send_message(message.chat.id, f'🚫 Ошибка при выполнении команды. Повторите запрос или пропишите /help! 🚫')
-
-@bot.callback_query_handler(lambda call: call.data == 'donateyes' or call.data == 'donateno')
-def donate_result(call):
-	try:
-		removekeyboard = types.ReplyKeyboardRemove()
-		rmk = types.ReplyKeyboardMarkup(resize_keyboard=True)
-		rmk.add(types.KeyboardButton('✅ Оплачено'))
-		if call.data == 'donateyes':
-			bot.delete_message(call.message.chat.id, call.message.message_id-0)
-			msg = bot.send_message(call.message.chat.id, f"Кошелек для оплаты: +79217038628\nСумма: {donatevalue}₽\nКомментарий: {commentdonate}\n",parse_mode='Markdown',reply_markup=rmk)
-			bot.register_next_step_handler(msg, donateyesoplacheno)
-		elif call.data == 'donateno':
-			bot.send_message(call.message.chat.id, f"Вы отменили заявку на пополнение средств",reply_markup=removekeyboard)
-		bot.answer_callback_query(callback_query_id=call.id)
-	except:
-		bot.send_message(call.message.chat.id, f'🚫 Ошибка при выполнении команды. Повторите запрос или пропишите /help! 🚫')
-
+#Функция вытаскивает информацию о товаре из БД и дает право изменить ячейки в БД
 @bot.message_handler(commands=['changebuy'])
 def changebuy(message):
 	try:
@@ -706,6 +739,7 @@ def editbuy_first_callback(call):
 	except:
 		bot.send_message(call.message.chat.id, f'🚫 Ошибка при выполнении команды. Повторите запрос или пропишите /help! 🚫')
 
+#Функция удаления всей информации из БД о товаре		
 @bot.message_handler(commands=['deletebuy'])
 def deletebuy(message):
 	try:
@@ -752,6 +786,7 @@ def removebuy_callback(call):
 	except:
 		bot.send_message(call.message.chat.id, f'🚫 Ошибка при выполнении команды. Повторите запрос или пропишите /help! 🚫')
 
+#Обратная функция [guard]. Теперь администрация пишет пользователю		
 @bot.message_handler(commands=['answer'])
 def answer(message):
 	try:
@@ -798,5 +833,5 @@ def sendmsgtouser_callback(call):
 		bot.send_message(call.message.chat.id, f'🚫 Ошибка при выполнении команды. Повторите запрос или пропишите /help! 🚫')
 
 
-
+#Бот проверяет информацию о том, не писал ли кто-то ему, путем отправления запроса на сервер
 bot.polling(none_stop=True,interval=0)
